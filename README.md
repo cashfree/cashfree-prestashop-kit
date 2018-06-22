@@ -17,4 +17,12 @@ Steps :
 
 6. You can now begin accepting payments through Cashfree
 
-For any support kindly contact : 
+## Found a bug?
+
+Report it at [https://github.com/cashfree/cashfree_prestashop_kit/issues](https://github.com/cashfree/cashfree_opencart_kit/issues)
+
+# Support
+
+For further queries, reach us at techsupport@gocashfree.com .
+
+********************************************************************************** 
