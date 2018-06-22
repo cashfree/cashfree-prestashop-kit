@@ -10,7 +10,7 @@ Steps :
 
 3. Compress the folder and place in the "Modules" folder of your server
 
-4. In your Prestashop page, go to "installed modules" and select the Cashfree module that shows up/ 
+4. In your Prestashop page, go to "installed modules" and select the Cashfree module that shows up
 
 5. On the configurations tab, save the details as follows :
 
