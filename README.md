@@ -1,4 +1,4 @@
-Prestashop Module - Cashfree
+## Prestashop Module -  Cashfree
 
 This repository contains integration code for interaction with the Cashfree API and allows payment in Prestashop seamlessly. 
 
