@@ -13,6 +13,12 @@ Steps :
 4. In your Prestashop page, go to "installed modules" and select the Cashfree module that shows up
 
 5. On the configurations tab, save the details as follows :
+    
+    Merchant ID : Your merchant APP ID
+    Merchant Secret Key : Your merchant secrett key
+    Gateway URL : 
+    Callback URL : 
+    
 
 
 6. You can now begin accepting payments through Cashfree
