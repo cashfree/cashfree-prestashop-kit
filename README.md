@@ -19,7 +19,7 @@ Steps :
 
 ## Found a bug?
 
-Report it at [https://github.com/cashfree/cashfree_prestashop_kit/issues](https://github.com/cashfree/cashfree_opencart_kit/issues)
+Report it at [https://github.com/cashfree/cashfree_prestashop_kit/issues](https://github.com/cashfree/cashfree_prestashop_kit/issues)
 
 # Support
 
