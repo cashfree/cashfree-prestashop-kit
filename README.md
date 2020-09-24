@@ -14,10 +14,10 @@ Steps :
 
 5. On the configurations tab, save the details as follows :
     
-    Merchant ID : Your merchant APP ID <br/>
-    Merchant Secret Key : Your merchant secret key <br/>
-    Gateway URL : <br/>
-    Callback URL : <br/>
+    App ID: : Your merchant APP ID <br/>
+    Secret Key : Your merchant secret key <br/>
+    Test Mode: : <br/>
+    Success Order Status: : <br/>
     
 
 

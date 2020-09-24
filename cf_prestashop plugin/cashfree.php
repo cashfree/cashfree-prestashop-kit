@@ -1,296 +1,480 @@
-<?php 	
-// error_reporting(E_ALL);	
+<?php
+/**
+ * CASHFREE
+ */
 use PrestaShop\PrestaShop\Core\Payment\PaymentOption;
-if (!defined('_PS_VERSION_')) {
-	exit;
-}
-require_once(dirname(__FILE__).'/lib/encdec_cashfree.php');
+
+if (!defined('_PS_VERSION_'))
+    exit;
+
+
 class Cashfree extends PaymentModule
 {
-	private $_html = '';
-	private $_postErrors = array();
-	private $_title;
-	
-	function __construct()
-	{		
-		$this->name = 'cashfree';
-		$this->tab = 'payments_gateways';
-		$this->version = 3.0;
-		$this->author = 'Cashfree Development Team';
-				
-		parent::__construct();
-		$this->displayName = $this->l(' Cashfree');
-		$this->description = $this->l('Module for accepting payments by Cashfree');
+    public function __construct()
+    {
+        $this->name = 'cashfree';
+        $this->tab = 'payments_gateways';
+        $this->version = '1.0.2';
+        $this->author = 'Cashfree';
+        $this->need_instance = 1;
+        $this->bootstrap = true;       
 		
-		$this->page = basename(__FILE__, '.php');
-	}
-	
-	public function getDefaultCallbackUrl(){
-		return $this->context->link->getModuleLink($this->name, 'validation');
-	}
-	public function install()
-	{
-		if(parent::install()){
-			Configuration::updateValue("Cashfree_MERCHANT_ID", "");
-			Configuration::updateValue("Cashfree_MERCHANT_KEY", "");
-			Configuration::updateValue("Cashfree_TRANSACTION_STATUS_URL", "");
-			Configuration::updateValue("Cashfree_GATEWAY_URL", "");
-			#Configuration::updateValue("Paytm_MERCHANT_INDUSTRY_TYPE", "");
-			#Configuration::updateValue("Paytm_MERCHANT_CHANNEL_ID", "WEB");
-			#Configuration::updateValue("Paytm_MERCHANT_WEBSITE", "");
-			Configuration::updateValue("Cashfree_CALLBACK_URL_STATUS", 0);
-			Configuration::updateValue("Cashfree_CALLBACK_URL", $this->getDefaultCallbackUrl());
-			
-			$this->registerHook('paymentOptions');
-			
-			if(!Configuration::get('Cashfree_ORDER_STATE')){
-				$this->setCashfreeOrderState('Cashfree_ID_ORDER_SUCCESS','Payment Received','#b5eaaa');
-				$this->setCashfreeOrderState('Cashfree_ID_ORDER_FAILED','Payment Failed','#E77471');
-				$this->setCashfreeOrderState('Cashfree_ID_ORDER_PENDING','Payment Pending','#F4E6C9');
+		
+        $this->ps_versions_compliancy = array(
+            'min' => '1.7',
+            'max' => _PS_VERSION_
+        );
 
-				//Setting setPaytmOrderState -> setCashfreeOrderState; pls check for errors
-				Configuration::updateValue('Cashfree_ORDER_STATE', '1');
-			}		
-			return true;
-		}
-		else {
-			return false;
-		}
-	
-	}
-	public function uninstall()
-	{
-		if (!Configuration::deleteByName("Cashfree_MERCHANT_ID") OR 
-			!Configuration::deleteByName("Cashfree_MERCHANT_KEY") OR 
-			!Configuration::deleteByName("Cashfree_TRANSACTION_STATUS_URL") OR 
-			!Configuration::deleteByName("Cashfree_GATEWAY_URL") OR 
-			#!Configuration::deleteByName("Paytm_MERCHANT_INDUSTRY_TYPE") OR 
-			#!Configuration::deleteByName("Paytm_MERCHANT_CHANNEL_ID") OR 
-			#!Configuration::deleteByName("Paytm_MERCHANT_WEBSITE") OR 
-			!Configuration::deleteByName("Cashfree_CALLBACK_URL_STATUS") OR 
-			!Configuration::deleteByName("Cashfree_CALLBACK_URL") OR 
-			!parent::uninstall()) {
-			return false;
-		}
-		return true;
-	}
-	public function setCashfreeOrderState($var_name,$status,$color){
-		$orderState = new OrderState();
-		$orderState->name = array();
-		foreach(Language::getLanguages() AS $language){
-			$orderState->name[$language['id_lang']] = $status;
-		}
-		$orderState->send_email = false;
-		$orderState->color = $color;
-		$orderState->hidden = false;
-		$orderState->delivery = false;
-		$orderState->logable = true;
-		$orderState->invoice = true;
-		if ($orderState->add())
-			Configuration::updateValue($var_name, (int)$orderState->id);
-		return true;
-	}
-	public function getContent() {
-		$this->_html = "<h2>" . $this->displayName . "</h2>";
-		if (isset($_POST["submitCashfree"])) {
-			// trim all values
-			foreach($_POST as &$v){
-				$v = trim($v);
-			}
-			if (!isset($_POST["merchant_id"]) || $_POST["merchant_id"] == ""){
-				$this->_postErrors[] = $this->l("Please Enter your Merchant APP ID.");
-			}
-			if (!isset($_POST["merchant_key"]) || $_POST["merchant_key"] == ""){
-				$this->_postErrors[] = $this->l("Please Enter your Merchant Secret Key.");
-			}
-			/*if (!isset($_POST["industry_type"]) || $_POST["industry_type"] == ""){
-				$this->_postErrors[] = $this->l("Please Enter your Industry Type.");
-			}*/
-			/*if (!isset($_POST["channel_id"]) || $_POST["channel_id"] == ""){
-				$this->_postErrors[] = $this->l("Please Enter your Channel ID.");
-			}/*
-			if (!isset($_POST["website"]) || $_POST["website"] == ""){
-				$this->_postErrors[] = $this->l("Please Enter your Website.");
-			}*/
-			if (!isset($_POST["gateway_url"]) || $_POST["gateway_url"] == ""){
-				$this->_postErrors[] = $this->l("Please Enter Gateway Url.");
-			}
-			if (!isset($_POST["status_url"]) || $_POST["status_url"] == ""){
-				$this->_postErrors[] = $this->l("Please Enter Transaction Status URL .");
-			}
-			if (!isset($_POST["callback_url"]) || $_POST["callback_url"] == ""){
-				$this->_postErrors[] = $this->l("Please Enter Callback URL.");
-			} else {
-				$url_parts = parse_url($_POST["callback_url"]);
-				if(!isset($url_parts["scheme"]) || (strtolower($url_parts["scheme"]) != "http" 
-					&& strtolower($url_parts["scheme"]) != "https") || !isset($url_parts["host"]) || $url_parts["host"] == ""){
-					$this->_postErrors[] = $this->l('Callback URL is invalid. Please enter valid URL and it must be start with http:// or https://');
-				}
-			}
-			if (!sizeof($this->_postErrors)) {
-				Configuration::updateValue("Cashfree_MERCHANT_ID", $_POST["merchant_id"]);
-				Configuration::updateValue("Cashfree_MERCHANT_KEY", $_POST["merchant_key"]);
-				Configuration::updateValue("Cashfree_GATEWAY_URL", $_POST["gateway_url"]);
-				#Configuration::updateValue("Paytm_MERCHANT_INDUSTRY_TYPE", $_POST["industry_type"]);
-				#Configuration::updateValue("Paytm_MERCHANT_CHANNEL_ID", $_POST["channel_id"]);
-				#Configuration::updateValue("Paytm_MERCHANT_WEBSITE", $_POST["website"]);
-				Configuration::updateValue("Cashfree_TRANSACTION_STATUS_URL", $_POST["status_url"]);
-				Configuration::updateValue("Cashfree_STATUS", $_POST["callback_url_status"]);
-				Configuration::updateValue("Cashfree_CALLBACK_URL", $_POST["callback_url"]);
-				$this->displayConf();
-			} else {
-				$this->displayErrors();
-			}
-		}
-		$this->_showimageCashfree();
-		$this->_displayFormSettings();
-		return $this->_html;
-    }
-    public function displayConf(){
-		$this->_html .= $this->displayConfirmation($this->trans('Settings updated', array(), 'Admin.Notifications.Success'));
-	}
-	
-	public function displayErrors(){
-		$nbErrors = sizeof($this->_postErrors);
-		$this->_html .= '
-		<div class="alert error">
-			<h3>'.($nbErrors > 1 ? $this->l('There are') : $this->l('There is')).' '.$nbErrors.' '.($nbErrors > 1 ? $this->l('errors') : $this->l('error')).'</h3>
-			<ol>';
-		foreach ($this->_postErrors AS $error)
-			$this->_html .= '<li>'.$error.'</li>';
-		$this->_html .= '
-			</ol>
-		</div>';
-	}
-	
-	public function _showimageCashfree(){
-		$this->_html .= '
-		<img src="../modules/cashfree/cashfree.png" style="float:left; padding: 0px; margin-right:15px;" />
-		<b>'.$this->l('This module allows you to accept payments by Cashfree.').'</b><br /><br />
-		'.$this->l('If the client chooses this payment mode, your Cashfree account will be automatically credited.').'<br />
-		'.$this->l('Please ensure that your Cashfree account is configured before using this module.').'
-		<br /><br /><br />';
-	}
-	public function _displayFormSettings() {
-	 	$merchant_id = isset($_POST["merchant_id"])? 
-							$_POST["merchant_id"] : Configuration::get("Cashfree_MERCHANT_ID");
-		$merchant_key = isset($_POST["merchant_key"])? 
-							$_POST["merchant_key"] : Configuration::get("Cashfree_MERCHANT_KEY");
-		/*$industry_type = isset($_POST["industry_type"])? 
-							$_POST["industry_type"] : Configuration::get("Paytm_MERCHANT_INDUSTRY_TYPE");*/
-		/*$channel_id = isset($_POST["channel_id"])? 
-							$_POST["channel_id"] : Configuration::get("Paytm_MERCHANT_CHANNEL_ID");/*
-		$website = isset($_POST["website"])? 
-							$_POST["website"] : Configuration::get("Paytm_MERCHANT_WEBSITE");*/
-		$gateway_url = isset($_POST["gateway_url"])? 
-							$_POST["gateway_url"] : Configuration::get("Cashfree_GATEWAY_URL");
-		$status_url = isset($_POST["status_url"])? 
-							$_POST["status_url"] : Configuration::get("Cashfree_TRANSACTION_STATUS_URL");
-		$callback_url = isset($_POST["callback_url"])? 
-							$_POST["callback_url"] : Configuration::get("Cashfree_CALLBACK_URL");
-		$last_updated = "";
-		$path = __DIR__."/cashfree_version.txt";
-		if(file_exists($path)){
-			$handle = fopen($path, "r");
-			if($handle !== false){
-				$date = fread($handle, 10); // i.e. DD-MM-YYYY or 25-04-2018
-				$last_updated = '<div class="pull-left"><p>Last Updated: '. date("d F Y", strtotime($date)) .'</p></div>';
-			}
-		}
-		$this->bootstrap = true;
-		$this->_html .= '
-			<form id="module_form" class="defaultForm form-horizontal" method="POST" novalidate="">
-				<div class="panel">
-					<div class="panel-heading">'.$this->l("Cashfree Payment Configuration Set Up").'</div>
-					<div class="form-wrapper">
-						<div class="form-group">
-							<label class="control-label col-lg-3 required"> '.$this->l("Merchant APP ID").'</label>
-							<div class="col-lg-9">
-								<input type="text" name="merchant_id" value="' . $merchant_id . '"  class="" required="required"/>
-							</div>
-						</div>
-						<div class="form-group">
-							<label class="control-label col-lg-3 required"> '.$this->l("Merchant Secret Key").'</label>
-							<div class="col-lg-9">
-								<input type="text" name="merchant_key" value="' . $merchant_key . '"  class="" required="required"/>
-							</div>
-						</div>
-						
-						<div class="form-group">
-							<label class="control-label col-lg-3 required"> '.$this->l("Transaction Url").'</label>
-							<div class="col-lg-9">
-								<input type="text" name="gateway_url" value="' . $gateway_url . '"  class="" required="required"/>
-							</div>
-						</div>
-						<div class="form-group">
-							<label class="control-label col-lg-3 required"> '.$this->l("Transaction Status Url").'</label>
-							<div class="col-lg-9">
-								<input type="text" name="status_url" value="' . $status_url . '"  class="" required="required"/>
-							</div>
-						</div>
-						<div class="form-group">
-							<label class="control-label col-sm-3 required" for="callback_url_status">
-								'.$this->l("Custom Callback Url").'
-							</label>
-							<div class="col-sm-9">
-								<select name="callback_url_status" id="callback_url_status" class="form-control">
-									<option value="1" '.(Configuration::get("Cashfree_CALLBACK_URL_STATUS") == "1"? "selected" : "").'>'.$this->l('Enable').'</option>
-									<option value="0" '.(Configuration::get("Cashfree_CALLBACK_URL_STATUS") == "0"? "selected" : "").'>'.$this->l('Disable').'</option>
-								</select>
-							</div>
-						</div>
-						<div class="callback_url_group form-group">
-							<label class="control-label col-sm-3 required" for="callback_url">
-								'.$this->l("Callback URL").'
-							</label>
-							<div class="col-sm-9">
-								<input type="text" name="callback_url" id="callback_url" value="'. $callback_url .'" class="form-control" '.(Configuration::get("Cashfree_CALLBACK_URL_STATUS") == "0"? "readonly" : "").'/>
-							</div>
-						</div>
-					</div>
-					<div class="panel-footer">
-						<div>
-							<button type="submit" value="1" id="module_form_submit_btn" name="submitCashfree" class="btn btn-default pull-right">
-								<i class="process-icon-save"></i> Save
-							</button>
-						</div>
-						'.$last_updated.'
-					</div>
-				</div>
-			</form>
-			<script type="text/javascript">
-			var default_callback_url = "'.$this->getDefaultCallbackUrl().'";
-			function toggleCallbackUrl(){
-				if($("select[name=\"callback_url_status\"]").val() == "1"){
-					$(".callback_url_group").removeClass("hidden");
-					$("input[name=\"callback_url\"]").prop("readonly", false);
-				} else {
-					$(".callback_url_group").addClass("hidden");
-					$("#callback_url").val(default_callback_url);
-					$("input[name=\"callback_url\"]").prop("readonly", true);
-				}
-			}
-			$(document).on("change", "select[name=\"callback_url_status\"]", function(){
-				toggleCallbackUrl();
-			});
-			toggleCallbackUrl();
-			</script>';
-	}
-	public function hookPaymentOptions($params)
-	{
-		if (!$this->active) {
-			return;
-		}
-	
-		$newOption = new PaymentOption();
-		$newOption->setCallToActionText($this->trans('Pay with', array(), 'Modules.Cashfree.Shop'))
-		//->setForm($paymentForm)
-		->setLogo(_MODULE_DIR_.'cashfree/views/img/cashfree.png')
-		//->setAdditionalInformation('your additional Information')
-		->setAction($this->context->link->getModuleLink($this->name, 'payment'));
-		$newOption->setModuleName('cashfree');
+
+        parent::__construct();
 		
-		return [$newOption];
+		$this->meta_title = $this->l('Cashfree');
+		$this->displayName = $this->l('Cashfree');		        
+        $this->description = $this->l('Cashfree');	
+
+    }
+
+    public function install()
+    {
+		$this->addOrderState('Payment Failed');
+        if (!parent::install() || !$this->registerHook('paymentOptions') || !$this->registerHook('adminOrder') || !$this->registerHook('hookPaymentReturn') || !$this->registerHook('orderConfirmation')           
+        ) {
+            return false;
+        }
+        return true;
+
+    }
+	
+	public function addOrderState($name)
+    {
+        $state_exist = false;
+        $states = OrderState::getOrderStates((int)$this->context->language->id);
+ 
+        // check if order state exist
+        foreach ($states as $state) {
+            if (in_array($name, $state)) {
+                $state_exist = true;
+                break;
+            }
+        }
+ 
+        // If the state does not exist, we create it.
+        if (!$state_exist) {
+            // create new order state
+			$order_state = new OrderState();
+			$order_state->id_order_state = 21;
+            $order_state->color = '#d30016';
+            $order_state->send_email = false;
+            $order_state->module_name = 'cashfree';
+            $order_state->template = '';
+            $order_state->name = array();
+            $languages = Language::getLanguages(false);
+            foreach ($languages as $language)
+                $order_state->name[ $language['id_lang'] ] = $name;
+ 
+            // Update object
+            $order_state->add();
+        }
+ 
+        return true;
+    }
+	
+    public function hookPaymentOptions($params)
+    {
+        return $this->cashfreePaymentOptions($params);
+    }
+	
+    public function hookPaymentReturn($params)
+    {		
+		
+        $this->cashfreePaymentReturnNew($params);
+        return $this->display(dirname(__FILE__), '/tpl/order-confirmation.tpl');
+    }	
+	
+		
+    public static function setOrderStatus($oid, $status)
+    {
+        $order_history = new OrderHistory();
+        $order_history->id_order = (int)$oid;
+        $order_history->changeIdOrderState((int)$status, (int)$oid, true);
+        $order_history->addWithemail(true);        
+    }
+	
+
+	public function hookOrderConfirmation($params)
+    {
+		
+		
+		if ($params['order']->module != $this->name)
+			return false;
+		
+		$errmsg = '';
+		if (isset($_GET['errmsg'])) $errmsg = base64_decode($_GET['errmsg']);		
+		
+		if ($params['order'] && Validate::isLoadedObject($params['order']) && isset($params['order']->valid))
+		{
+			
+		$this->smarty->assign('cashfree_order', array('id' => $params['order']->id, 'valid' => $params['order']->valid, 'errmsg'=>$errmsg));
+
+			return $this->display(__FILE__, '/tpl/order-confirmation.tpl');
+		}
+    }
+	
+	public function returnsuccess($params, $response_url){
+		$orderId = $params['orderId'];
+		list($oid) = explode('_', $orderId);
+		$cart = new Cart((int)$oid);
+		if ($cart->OrderExists()) {
+			$order = new Order((int)Order::getOrderByCartId($oid));
+			$query = http_build_query([
+                'controller'    => 'order-confirmation',
+                'id_cart'       => (int)$oid,
+                'id_module'     => (int)$this->id,
+                'id_order'      => (int)$order->id,
+                'key'           => $this->context->customer->secure_key,
+            ], '', '&');
+
+            $url = 'index.php?' . $query;
+			return $url;
+		}
+
+		try 
+		{
+			$apiEndpoint = (Configuration::get('CASHFREE_MODE') == 'N') ? 'https://api.cashfree.com' : 'https://test.cashfree.com'; 
+		
+			$enqUrl = $apiEndpoint.'/api/v1/order/info/status';
+			$cf_request = array();
+			$cf_request["appId"] = Configuration::get('CASHFREE_APP_ID');
+			$cf_request["secretKey"] = Configuration::get('CASHFREE_SKEY');
+			$cf_request["orderId"] = $orderId; 		
+			
+			$timeout = 10;
+	
+			$request_string = "";
+			foreach($cf_request as $key=>$value) {
+				$request_string .= $key.'='.rawurlencode($value).'&';
+			}
+	
+			$ch = curl_init();
+			curl_setopt($ch, CURLOPT_URL,"$enqUrl?");
+			curl_setopt($ch,CURLOPT_POST, true);
+			curl_setopt($ch,CURLOPT_POSTFIELDS, $request_string);
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);				
+			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);		
+			$curl_result=curl_exec ($ch);
+			curl_close ($ch);
+
+			$jsonResponse = json_decode($curl_result, true);
+			
+		}
+		catch(Exception $e)
+        {
+            $error = $e->getMessage();
+            Logger::addLog("Payment Failed for cart# ".$cart->id.". Cashfree reference id: ".$params['referenceId']." Error: ". $error, 4);
+
+            echo 'Error! Please contact the seller directly for assistance.</br>';
+            echo 'Cart Id: '.$cart->id.'</br>';
+            echo 'Cashfree Reference Id: '.$params['referenceId'].'</br>';
+            echo 'Error: '.$error.'</br>';
+
+            exit;
+        }		
+		if ($jsonResponse['status'] == "OK") {
+			
+			$errmsglist['CANCELLED'] = 'Payment has been cancelled';
+			$errmsglist['PENDING'] = 'Payment is under review.';			
+			$errmsglist['FLAGGED'] = 'Payment is under flagged';
+			$errmsglist['FAILED'] = 'Payment failed';			
+		
+			
+			$txStatus = 'CANCELLED';
+			$total = $jsonResponse['orderAmount'];			
+
+			if (array_key_exists("txStatus", $jsonResponse))
+				$txStatus = $jsonResponse["txStatus"];			
+			
+				
+			if ($txStatus == 'SUCCESS') {				
+				$extra_vars['transaction_id'] = $jsonResponse['referenceId'];
+				$orderValidate = $this->validateOrder((int)$oid, (int)Configuration::get('CASHFREE_OSID'), (float)($total), $this->displayName, null, $extra_vars, null, false, $cart->secure_key);
+
+				Logger::addLog("Payment Successful for cart#".$oid.". Cashfree reference id: ".$jsonResponse['referenceId'] . " Ret=" . (int)$orderValidate." Success Url: ".$response_url, 1);
+
+				$query = http_build_query([
+					'controller'    => 'order-confirmation',
+					'id_cart'       => (int)$oid,
+					'id_module'     => (int)$this->id,
+					'id_order'      => (int)$this->currentOrder,
+					'key'           => $this->context->customer->secure_key,
+				], '', '&');
+	
+				$url = 'index.php?' . $query;
+			}
+			else if($txStatus == 'FAILED') {
+				$payment_failed_stid = 6;
+				$states = OrderState::getOrderStates((int)$this->context->language->id);
+				// check if order state exist
+				foreach ($states as $state) {
+					if (in_array('Payment Failed', $state)) {
+						$payment_failed_stid = $state['id_order_state'];
+					}
+				}
+				$orderValidate = $this->validateOrder((int)$oid, (int)$payment_failed_stid, (float)($total), $this->displayName, null, array(), null, false, $cart->secure_key);
+
+				Logger::addLog("Payment Failed for cart#".$oid.". Cashfree reference id: ".$jsonResponse['referenceId'] . " Ret=" . (int)$orderValidate." Success Url: ".$response_url, 1);
+
+				$query = http_build_query([
+					'controller'    => 'order-confirmation',
+					'id_cart'       => (int)$oid,
+					'id_module'     => (int)$this->id,
+					'id_order'      => (int)$this->currentOrder,
+					'key'           => $this->context->customer->secure_key,
+					'errmsg'		=> base64_encode($errmsglist[$txStatus]),
+				], '', '&');
+	
+				$url = 'index.php?' . $query;
+			}
+			else {
+				$cancel_stid = 6;
+				$orderValidate = $this->validateOrder((int)$oid, (int)$cancel_stid, (float)($total), $this->displayName, null, array(), null, false, $cart->secure_key);
+
+				Logger::addLog("Payment Cancelled for cart#".$oid.". Cashfree reference id: ".$jsonResponse['referenceId'] . " Ret=" . (int)$orderValidate." Success Url: ".$response_url, 1);
+
+				$query = http_build_query([
+					'controller'    => 'order-confirmation',
+					'id_cart'       => (int)$oid,
+					'id_module'     => (int)$this->id,
+					'id_order'      => (int)$this->currentOrder,
+					'key'           => $this->context->customer->secure_key,
+					'errmsg'		=> base64_encode($errmsglist[$txStatus]),
+				], '', '&');
+	
+				$url = 'index.php?' . $query;
+			}			
+			return $url;			
+			
+		}
+		
 	}
+	
+    /**
+     * Uninstall and clean the module settings
+     *
+     * @return	bool
+     */
+    public function uninstall()
+    {
+        parent::uninstall();
+
+        Db::getInstance()->Execute('DELETE FROM `'._DB_PREFIX_.'module_country` WHERE `id_module` = '.(int)$this->id);
+
+        return (true);
+    }
+
+	
+    public function getContent()
+    {
+        if (Tools::isSubmit('submit' . $this->name)) {
+			
+			$cashfree_name = Tools::getValue('cashfree_name');
+			$saveOpt = false;
+			$err_msg = '';
+			if (empty(Tools::getValue('cashfree_app_id'))) $err_msg = 'App ID must have value';
+			if (empty(Tools::getValue('cashfree_secret_key'))) $err_msg = 'Secret Key must have value';			
+		
+			
+			if (empty($err_msg)) $saveOpt = true;
+			
+        	if ($saveOpt) {
+				Configuration::updateValue('CASHFREE_APP_ID', pSQL(Tools::getValue('cashfree_app_id')));
+				Configuration::updateValue('CASHFREE_SKEY', pSQL(Tools::getValue('cashfree_secret_key')));			
+				Configuration::updateValue('CASHFREE_OSID', pSQL(Tools::getValue('cashfree_order_status')));
+				Configuration::updateValue('CASHFREE_MODE', pSQL(Tools::getValue('cashfree_mode')));			
+																		
+				$html = '<div class="alert alert-success">'.$this->l('Configuration updated successfully').'</div>';			
+			}
+			else {
+				$html = '<div class="alert alert-warning">'.$this->l($err_msg).'</div>';	
+			}
+        }
+
+		$states = 	OrderState::getOrderStates((int) Configuration::get('PS_LANG_DEFAULT'));
+		foreach ($states as $state)		
+		{
+			$OrderStates[$state['id_order_state']] = $state['name'];
+		}
+		$orderstatusid = Configuration::get('CASHFREE_OSID');			
+		if (empty($orderstatusid)) 	$orderstatusid = '2';
+		
+        $data    = array(
+            'base_url'    => _PS_BASE_URL_ . __PS_BASE_URI__,
+            'module_name' => $this->name,            
+			'cashfree_app_id' => Configuration::get('CASHFREE_APP_ID'),					
+			'cashfree_secret_key' => Configuration::get('CASHFREE_SKEY'),		        
+            'cashfree_mode' => Configuration::get('CASHFREE_MODE'),			
+            'cashfree_order_status' => $orderstatusid,			
+			'cashfree_confirmation' => $html,			
+            'orderstates' => $OrderStates,	
+        );
+
+        $this->context->smarty->assign($data);	
+        $output = $this->display(__FILE__, 'tpl/admin.tpl');
+
+        return $output;
+    }
+
+	
+	//1.7
+
+    public function cashfreePaymentOptions($params)
+    {
+
+        if (!$this->active) {
+            return;
+        }
+        if (!$this->checkCurrency($params['cart'])) {
+            return;
+        }
+        $payment_options = [
+            $this->cashfreeExternalPaymentOption(),
+        ];
+        return $payment_options;
+    }
+
+    public function checkCurrency($cart)
+    {
+        $currency_order = new Currency($cart->id_currency);
+        $currencies_module = $this->getCurrency($cart->id_currency);
+
+        if (is_array($currencies_module)) {
+            foreach ($currencies_module as $currency_module) {
+                if ($currency_order->id == $currency_module['id_currency']) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public function cashfreeExternalPaymentOption()
+    {
+		$lang = Tools::strtolower($this->context->language->iso_code);
+		if (isset($_GET['cashfreeerror'])) $errmsg = $_GET['cashfreeerror'];
+        $this->context->smarty->assign(array(
+            'module_dir' => $this->_path,
+            'errmsg' => $errmsg,			
+        ));		
+		
+		$url = $this->context->link->getModuleLink('cashfree', 'payment');
+		
+        $newOption = new PaymentOption();
+        $newOption->setCallToActionText($this->l('Pay with Cashfree'))
+			->setAction($url)
+            ->setAdditionalInformation($this->context->smarty->fetch('module:cashfree/tpl/payment_infos.tpl'));
+
+        return $newOption;
+    }
+
+    public function cashfreePaymentReturnNew($params)
+    {
+        // Payement return for PS 1.7
+        if ($this->active == false) {
+            return;
+        }
+        $order = $params['order'];
+        if ($order->getCurrentOrderState()->id != Configuration::get('PS_OS_ERROR')) {
+            $this->smarty->assign('status', 'ok');
+        }	
+		
+        $this->smarty->assign(array(
+            'id_order' => $order->id,
+            'reference' => $order->reference,					
+            'params' => $params,
+            'total_to_pay' => Tools::displayPrice($order->total_paid, null, false),
+            'shop_name' => $this->context->shop->name,
+        ));
+        return $this->fetch('module:' . $this->name . '/tpl/order-confirmation.tpl');
+    }
+	
+	public function getUrl()
+    {        				
+		$cart = $this->context->cart;
+		$customer = new Customer($cart->id_customer);
+		
+		$amount = number_format($cart->getOrderTotal(true, Cart::BOTH),2);
+		$order_id = $cart->id;				
+				
+		$iaddress = new Address($cart->id_address_invoice);				
+		$icountry_code = Country::getIsoById($iaddress->id_country) ;		
+		$total = ($cart->getOrderTotal());
+		$currency = $this->context->currency;
+		
+		$returnURL = $this->context->link->getModuleLink('cashfree', 'validation');		
+		$notifyURL  = $this->context->link->getModuleLink('cashfree', 'notify');
+					  
+		$apiEndpoint = (Configuration::get('CASHFREE_MODE') == 'N') ? 'https://api.cashfree.com' : 'https://test.cashfree.com';  				
+		
+		$opUrl = $apiEndpoint."/api/v1/order/create";
+  
+   		$cf_request = array();
+   		$cf_request["appId"] = Configuration::get('CASHFREE_APP_ID');
+   		$cf_request["secretKey"] = Configuration::get('CASHFREE_SKEY');
+   		$cf_request["orderId"] = $order_id.'_'.time(); 
+   		$cf_request["orderAmount"] = round($total, 2);
+   		$cf_request["orderNote"] = "Order No: ".$order_id;
+   		$cf_request["customerPhone"] = $iaddress->phone;
+   		$cf_request["customerName"] = $iaddress->firstname . ' ' . $iaddress->lastname;
+   		$cf_request["customerEmail"] = $customer->email;
+   		$cf_request["returnUrl"] = $returnURL;
+		$cf_request["notifyUrl"] = $notifyURL;
+		$cf_request["orderCurrency"] = $currency->iso_code;
+		//$cf_request["orderCurrency"] ='INR';
+		
+		
+		$timeout = 10;
+   
+   		$request_string = "";
+   		foreach($cf_request as $key=>$value) {
+     		$request_string .= $key.'='.rawurlencode($value).'&';
+   		}
+		try 
+		{
+			$ch = curl_init();
+			curl_setopt($ch, CURLOPT_URL,"$opUrl?");
+			curl_setopt($ch,CURLOPT_POST, count($cf_request));
+			curl_setopt($ch,CURLOPT_POSTFIELDS, $request_string);
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+			$curl_result=curl_exec ($ch);
+			curl_close ($ch);
+
+			$jsonResponse = json_decode($curl_result);
+
+			if ($jsonResponse->{'status'} == "OK") {
+				$paymentLink = $jsonResponse->{"paymentLink"};
+				return $paymentLink;
+				exit;
+			} else {	   		
+				$checkout_type = Configuration::get('PS_ORDER_PROCESS_TYPE') ? 'order-opc' : 'order';
+						$url = (_PS_VERSION_ >= '1.5' ? 'index.php?controller='.$checkout_type.'&' : $checkout_type.'.php?').'step=3&cgv=1&cashfreeerror='.$jsonResponse->{"reason"}.'#cashfree-anchor';
+						Tools::redirect($url);	
+				
+				exit;
+				
+			}
+		}
+		catch(Exception $e)
+		{
+			$error = $e->getMessage();
+            Logger::addLog("Order creation failed. Please contact the seller directly for assistance. Error: ". $error, 4);
+			$checkout_type = Configuration::get('PS_ORDER_PROCESS_TYPE') ? 'order-opc' : 'order';
+						$url = (_PS_VERSION_ >= '1.5' ? 'index.php?controller='.$checkout_type.'&' : $checkout_type.'.php?').'step=3&cgv=1&cashfreeerror='.$jsonResponse->{"reason"}.'#cashfree-anchor';
+						Tools::redirect($url);	
+				
+            exit;
+		}  		
+
+    }
 }
-?>

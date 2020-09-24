@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <module>
-    <name>paytm</name>
-    <displayName><![CDATA[ Cashfree]]></displayName>
-    <version><![CDATA[3]]></version>
-    <description><![CDATA[Module for accepting payments by Cashfree]]></description>
-    <author><![CDATA[Cashfree Development Team]]></author>
+    <name>cashfree</name>
+    <displayName><![CDATA[Cashfree]]></displayName>
+    <version><![CDATA[1.0.2]]></version>
+    <description><![CDATA[Cashfree]]></description>
+    <author><![CDATA[Cashfree]]></author>
     <tab><![CDATA[payments_gateways]]></tab>
     <is_configurable>1</is_configurable>
     <need_instance>1</need_instance>
