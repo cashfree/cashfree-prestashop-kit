@@ -307,15 +307,16 @@ class Cashfree extends PaymentModule
 		$orderstatusid = Configuration::get('CASHFREE_OSID');			
 		if (empty($orderstatusid)) 	$orderstatusid = '2';
 		
-        $data    = array(
+		$data    = array(
             'base_url'    => _PS_BASE_URL_ . __PS_BASE_URI__,
             'module_name' => $this->name,            
-			'cashfree_app_id' => Configuration::get('CASHFREE_APP_ID'),					
+			'cashfree_form' => isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '',				
+			'cashfree_app_id' => Configuration::get('CASHFREE_APP_ID'),				
 			'cashfree_secret_key' => Configuration::get('CASHFREE_SKEY'),		        
             'cashfree_mode' => Configuration::get('CASHFREE_MODE'),			
             'cashfree_order_status' => $orderstatusid,			
-			'cashfree_confirmation' => $html,			
-            'orderstates' => $OrderStates,	
+			'cashfree_confirmation' => isset($html) ? $html : '',			
+            'orderstates' => $OrderStates,
         );
 
         $this->context->smarty->assign($data);	

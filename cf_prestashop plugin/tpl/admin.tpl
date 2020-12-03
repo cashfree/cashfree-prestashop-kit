@@ -1,6 +1,6 @@
 {$cashfree_confirmation}
 
-<img src="{$cashfree_tracking|escape:'htmlall':'UTF-8'}" alt="" style="display: none;"/>
+<img src="{$base_url|escape:'htmlall':'UTF-8'}" alt="" style="display: none;"/>
 
 	<div class="cashfree-header">
 		<h2 class="page-title"><img src="{$module_dir}logo.png" alt="cashfree" class="cashfree-logo" /></a>
