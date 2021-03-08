@@ -1,5 +1,6 @@
 <?php
-class CashfreeValidationModuleFrontController extends ModuleFrontController
+
+class CashfreePaymentfailModuleFrontController extends ModuleFrontController
 {
 
     public $ssl = true;
@@ -10,9 +11,17 @@ class CashfreeValidationModuleFrontController extends ModuleFrontController
 
     public $display_column_right = false;
 
+    public $service;
+
+    protected $ajax_refresh = false;
+
+    protected $css_files_assigned = array();
+
+    protected $js_files_assigned = array();
     
     public function __construct()
     {
+		
 		
         $this->controller_type = 'modulefront';
         
@@ -27,12 +36,19 @@ class CashfreeValidationModuleFrontController extends ModuleFrontController
     }
 
     public function postProcess()
-    {		
-		$Cashfree = new Cashfree();
-		$url = $Cashfree->returnsuccess($_POST);		
-		if (isset($url)) Tools::redirect($url);
-		exit;		                                
+    {
+		
+		$err_reason = $_GET['cf_errreason'] ;
+		
+		$this->context->smarty->assign('err_reason', $err_reason);				        
+        
     }
-    
+
+    public function initContent()
+    {
+		
+        parent::initContent();
+        $this->setTemplate('payment-fail.tpl');
+    }
 
 }

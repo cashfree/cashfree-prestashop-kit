@@ -38,7 +38,10 @@ class CashfreePaymentModuleFrontController extends ModuleFrontController
 				
 		$Cashfree = new Cashfree();
 		$url = $Cashfree->getUrl();
-		Tools::redirect(Tools::safeOutput($url, ''));
+		Tools::redirect(Tools::safeOutput($url, ''));				
+        
+        
+        
         
     }
     

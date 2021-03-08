@@ -35,10 +35,9 @@ class CashfreeNotifyModuleFrontController extends ModuleFrontController
     }
 
     public function postProcess()
-    {
-    $Cashfree = new Cashfree();
-    sleep(10);
-		$url = $Cashfree->returnsuccess($_POST, "Notify Url");
+    {		
+		$Cashfree = new Cashfree();
+		$url = $Cashfree->returnsuccess($_POST);
 		echo "OK";				
 		exit;		                                
     }

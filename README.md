@@ -5,6 +5,8 @@ This repository contains integration code for interaction with the Cashfree API 
 Steps :
 
 1. Download the repository as a zip folder.
+    - The `master` branch holds the plugin for Prestashop 1.7
+    - The `master-1.5/1.6` branch holds the plugin for Prestashop 1.5/1.6
 
 2. Upon extracting the folder, you will see a folder named "cf_prestashop plugin"
 
