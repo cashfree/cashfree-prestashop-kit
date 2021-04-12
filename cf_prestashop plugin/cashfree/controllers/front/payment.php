@@ -1,6 +1,5 @@
 <?php
-
-class CashfreePaymentfailModuleFrontController extends ModuleFrontController
+class CashfreePaymentModuleFrontController extends ModuleFrontController
 {
 
     public $ssl = true;
@@ -22,7 +21,6 @@ class CashfreePaymentfailModuleFrontController extends ModuleFrontController
     public function __construct()
     {
 		
-		
         $this->controller_type = 'modulefront';
         
         $this->module = Module::getInstanceByName(Tools::getValue('module'));
@@ -37,18 +35,12 @@ class CashfreePaymentfailModuleFrontController extends ModuleFrontController
 
     public function postProcess()
     {
-		
-		$err_reason = $_GET['cf_errreason'] ;
-		
-		$this->context->smarty->assign('err_reason', $err_reason);				        
+				
+		$Cashfree = new Cashfree();
+		$url = $Cashfree->getUrl();
+		Tools::redirect(Tools::safeOutput($url, ''));
         
     }
-
-    public function initContent()
-    {
-		
-        parent::initContent();
-        $this->setTemplate('payment-fail.tpl');
-    }
+    
 
 }

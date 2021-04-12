@@ -29,7 +29,7 @@ class CashfreeValidationModuleFrontController extends ModuleFrontController
     public function postProcess()
     {		
 		$Cashfree = new Cashfree();
-		$url = $Cashfree->returnsuccess($_POST);		
+		$url = $Cashfree->returnsuccess($_POST, true);		
 		if (isset($url)) Tools::redirect($url);
 		exit;		                                
     }
