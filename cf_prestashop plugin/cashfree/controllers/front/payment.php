@@ -1,5 +1,5 @@
 <?php
-class CashfreeValidationModuleFrontController extends ModuleFrontController
+class CashfreePaymentModuleFrontController extends ModuleFrontController
 {
 
     public $ssl = true;
@@ -10,6 +10,13 @@ class CashfreeValidationModuleFrontController extends ModuleFrontController
 
     public $display_column_right = false;
 
+    public $service;
+
+    protected $ajax_refresh = false;
+
+    protected $css_files_assigned = array();
+
+    protected $js_files_assigned = array();
     
     public function __construct()
     {
@@ -27,11 +34,12 @@ class CashfreeValidationModuleFrontController extends ModuleFrontController
     }
 
     public function postProcess()
-    {		
+    {
+				
 		$Cashfree = new Cashfree();
-		$url = $Cashfree->returnsuccess($_POST);		
-		if (isset($url)) Tools::redirect($url);
-		exit;		                                
+		$url = $Cashfree->getUrl();
+		Tools::redirect(Tools::safeOutput($url, ''));
+        
     }
     
 

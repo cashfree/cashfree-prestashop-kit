@@ -1,9 +1,8 @@
 <?php
-
-class CashfreePaymentfailModuleFrontController extends ModuleFrontController
+class CashfreeNotifyModuleFrontController extends ModuleFrontController
 {
 
-    public $ssl = true;
+  public $ssl = true;
 
     public $isLogged = false;
 
@@ -18,10 +17,10 @@ class CashfreePaymentfailModuleFrontController extends ModuleFrontController
     protected $css_files_assigned = array();
 
     protected $js_files_assigned = array();
+
     
     public function __construct()
     {
-		
 		
         $this->controller_type = 'modulefront';
         
@@ -37,18 +36,12 @@ class CashfreePaymentfailModuleFrontController extends ModuleFrontController
 
     public function postProcess()
     {
-		
-		$err_reason = $_GET['cf_errreason'] ;
-		
-		$this->context->smarty->assign('err_reason', $err_reason);				        
-        
+    sleep(30);
+    $Cashfree = new Cashfree();
+		$url = $Cashfree->returnsuccess($_POST, "Notify Url");
+		echo "OK";				
+		exit;		                                
     }
-
-    public function initContent()
-    {
-		
-        parent::initContent();
-        $this->setTemplate('payment-fail.tpl');
-    }
+    
 
 }
