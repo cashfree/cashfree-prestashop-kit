@@ -14,7 +14,7 @@ class Cashfree extends PaymentModule
     {
         $this->name = 'cashfree';
         $this->tab = 'payments_gateways';
-        $this->version = '1.1.0';
+        $this->version = '1.2.0';
         $this->author = 'Cashfree';
         $this->need_instance = 1;
         $this->bootstrap = true;       

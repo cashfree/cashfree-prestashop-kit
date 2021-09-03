@@ -2,7 +2,7 @@
 <module>
     <name>cashfree</name>
     <displayName><![CDATA[Cashfree]]></displayName>
-    <version><![CDATA[1.1.0]]></version>
+    <version><![CDATA[1.2.0]]></version>
     <description><![CDATA[Cashfree]]></description>
     <author><![CDATA[Cashfree]]></author>
     <tab><![CDATA[payments_gateways]]></tab>
