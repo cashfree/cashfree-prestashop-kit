@@ -353,13 +353,6 @@ class Cashfree extends PaymentModule
 
     public function cashfreeExternalPaymentOption()
     {
-		$lang = Tools::strtolower($this->context->language->iso_code);
-		if (isset($_GET['cashfreeerror'])) $errmsg = $_GET['cashfreeerror'];
-        $this->context->smarty->assign(array(
-            'module_dir' => $this->_path,
-            'errmsg' => $errmsg,			
-        ));		
-		
 		$url = $this->context->link->getModuleLink('cashfree', 'payment');
 		
         $newOption = new PaymentOption();
