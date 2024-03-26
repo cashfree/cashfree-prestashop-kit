@@ -6,17 +6,7 @@ class CashfreePaymentModuleFrontController extends ModuleFrontController
 
     public $isLogged = false;
 
-    public $display_column_left = false;
-
-    public $display_column_right = false;
-
     public $service;
-
-    protected $ajax_refresh = false;
-
-    protected $css_files_assigned = array();
-
-    protected $js_files_assigned = array();
     
     public function __construct()
     {
@@ -33,12 +23,15 @@ class CashfreePaymentModuleFrontController extends ModuleFrontController
         parent::__construct();
     }
 
+    /**
+     * @return void
+     */
     public function postProcess()
     {
-				
+
 		$Cashfree = new Cashfree();
 		$url = $Cashfree->getUrl();
-		Tools::redirect(Tools::safeOutput($url, ''));
+		Tools::redirect(Tools::safeOutput($url, true));
         
     }
     

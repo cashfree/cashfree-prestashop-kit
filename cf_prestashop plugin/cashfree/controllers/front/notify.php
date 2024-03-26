@@ -6,19 +6,9 @@ class CashfreeNotifyModuleFrontController extends ModuleFrontController
 
     public $isLogged = false;
 
-    public $display_column_left = false;
-
-    public $display_column_right = false;
-
-    public $service;
-
-    protected $ajax_refresh = false;
-
-    protected $css_files_assigned = array();
-
-    protected $js_files_assigned = array();
-
-    
+    /**
+     * @throws PrestaShopException
+     */
     public function __construct()
     {
 		
@@ -34,11 +24,15 @@ class CashfreeNotifyModuleFrontController extends ModuleFrontController
         parent::__construct();
     }
 
+    /**
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
     public function postProcess()
     {
-    sleep(30);
-    $Cashfree = new Cashfree();
-		$url = $Cashfree->returnsuccess($_POST, "Notify Url");
+        sleep(30);
+        $cashfree = new Cashfree();
+        $cashfree->returnSuccess($_POST, "Notify Url");
 		echo "OK";				
 		exit;		                                
     }

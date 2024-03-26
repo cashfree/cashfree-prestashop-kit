@@ -10,11 +10,13 @@ if (!defined('_PS_VERSION_'))
 
 class Cashfree extends PaymentModule
 {
+    const API_VERSION_20230801 = '2023-08-01';
+    const CASHFREE_V3_JS_URL = "https://sdk.cashfree.com/js/v3/cashfree.js";
     public function __construct()
     {
         $this->name = 'cashfree';
         $this->tab = 'payments_gateways';
-        $this->version = '1.2.0';
+        $this->version = '2.2.0';
         $this->author = 'Cashfree';
         $this->need_instance = 1;
         $this->bootstrap = true;       
@@ -119,135 +121,134 @@ class Cashfree extends PaymentModule
 			return $this->display(__FILE__, '/tpl/order-confirmation.tpl');
 		}
     }
-	
-	public function returnsuccess($params, $response_url){
-		$orderId = $params['orderId'];
-		list($oid) = explode('_', $orderId);
 
+    /**
+     * @throws PrestaShopException
+     * @throws PrestaShopDatabaseException
+     * @throws Exception
+     */
+    public function returnSuccess($params, $response_url){
+		$orderId = $params['order_id'];
+		list($oid) = explode('_', $orderId);
 		try 
 		{
-			$apiEndpoint = (Configuration::get('CASHFREE_MODE') == 'N') ? 'https://api.cashfree.com' : 'https://test.cashfree.com'; 
+			$apiEndpoint = (Configuration::get('CASHFREE_MODE') == 'N') ? 'https://api.cashfree.com' : 'https://sandbox.cashfree.com';
 		
-			$enqUrl = $apiEndpoint.'/api/v1/order/info/status';
-			$cf_request = array();
-			$cf_request["appId"] = Configuration::get('CASHFREE_APP_ID');
-			$cf_request["secretKey"] = Configuration::get('CASHFREE_SKEY');
-			$cf_request["orderId"] = $orderId; 		
-			
-			$timeout = 10;
-	
-			$request_string = "";
-			foreach($cf_request as $key=>$value) {
-				$request_string .= $key.'='.rawurlencode($value).'&';
-			}
-	
-			$ch = curl_init();
-			curl_setopt($ch, CURLOPT_URL,"$enqUrl?");
-			curl_setopt($ch,CURLOPT_POST, true);
-			curl_setopt($ch,CURLOPT_POSTFIELDS, $request_string);
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);				
-			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);		
-			$curl_result=curl_exec ($ch);
-			curl_close ($ch);
+			$enqUrl = $apiEndpoint.'/pg/orders/'.$orderId.'/payments';
+            $timeout = 30;
+            $header = array(
+                'Content-Type: application/json',
+                'x-client-id:'.Configuration::get('CASHFREE_APP_ID'),
+                'x-client-secret:'.Configuration::get('CASHFREE_SKEY'),
+                'x-api-version:'.$this::API_VERSION_20230801
+            );
 
-			$jsonResponse = json_decode($curl_result, true);
-			
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL,$enqUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
+            curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+            $curl_result=curl_exec ($ch);
+            curl_close ($ch);
+
+            $cfOrder = json_decode($curl_result);
 		}
 		catch(Exception $e)
         {
             $error = $e->getMessage();
-            Logger::addLog("Payment Failed for cart# ".$oid.". Cashfree reference id: ".$params['referenceId']." Error: ". $error, 4);
+            Logger::addLog("Payment Failed for cart# ".$oid." Error: ". $error, 4);
 
             echo 'Error! Please contact the seller directly for assistance.</br>';
-            echo 'Cart Id: '.$oid.'</br>';
-            echo 'Cashfree Reference Id: '.$params['referenceId'].'</br>';
+            echo 'Cart ID: '.$oid.'</br>';
             echo 'Error: '.$error.'</br>';
 
             exit;
-        }		
-		if ($jsonResponse['status'] == "OK") {
-			
-			$errmsglist['CANCELLED'] = 'Payment has been cancelled';
-			$errmsglist['PENDING'] = 'Payment is under review.';			
-			$errmsglist['FLAGGED'] = 'Payment is under flagged';
-			$errmsglist['FAILED'] = 'Payment failed';			
-		
-			
-			$txStatus = 'CANCELLED';
-			$total = $jsonResponse['orderAmount'];			
+        }
+        $errorMessageList['CANCELLED'] = 'Payment has been cancelled';
+        $errorMessageList['PENDING'] = 'Payment is under review.';
+        $errorMessageList['FLAGGED'] = 'Payment is under flagged';
+        $errorMessageList['FAILED'] = 'Payment failed';
+        $cart = $this->context->cart;
+        $customer = new Customer($cart->id_customer);
 
-			if (array_key_exists("txStatus", $jsonResponse))
-				$txStatus = $jsonResponse["txStatus"];			
-			
-				
-			if ($txStatus == 'SUCCESS') {	
-				$cart = new Cart((int)$oid);
-				if ($cart->OrderExists()) {
-					$order = new Order((int)Order::getOrderByCartId($oid));
-					$query = http_build_query([
-						'controller'    => 'order-confirmation',
-						'id_cart'       => (int)$oid,
-						'id_module'     => (int)$this->id,
-						'id_order'      => (int)$order->id,
-						'key'           => $this->context->customer->secure_key,
-					], '', '&');
+        if (is_array($cfOrder) && isset($cfOrder[0]) && is_object($cfOrder[0]) && isset($cfOrder[0]->payment_status) && $cfOrder[0]->payment_status === 'SUCCESS') {
+            $payments = $cfOrder[0];
+            if ($cart->OrderExists()) {
+                $order = new Order((int)Order::getOrderByCartId($oid));
+                $query = http_build_query([
+                    'controller'    => 'order-confirmation',
+                    'id_cart'       => (int)$cart->id,
+                    'id_module'     => (int)$this->id,
+                    'id_order'      => (int)$this->currentOrder,
+                    'key'           => $this->context->customer->secure_key,
+                ], '', '&');
 
-					$url = 'index.php?' . $query;
-					Logger::addLog("Already Order Exist. Payment Successful for cart#".$oid.". Cashfree reference id: ".$jsonResponse['referenceId'] . " Success Url: ".$response_url, 1);
-					return $url;
-				}			
-				$extra_vars['transaction_id'] = $jsonResponse['referenceId'];
-				$orderValidate = $this->validateOrder((int)$oid, (int)Configuration::get('CASHFREE_OSID'), (float)($total), $this->displayName, null, $extra_vars, null, false, $cart->secure_key);
+                Logger::addLog("Already Order Exist. Payment Successful for cart#".$oid.". Cashfree reference id: ".$payments->cf_payment_id. " Success Url: ".$response_url, 1);
+                return 'index.php?' . $query;;
+            }
+            $extra_vars['transaction_id'] = $payments->cf_payment_id;
+            $orderValidate = $this->validateOrder(
+                $cart->id,
+                (int)Configuration::get('CASHFREE_OSID'),
+                $cart->getOrderTotal(true, Cart::BOTH),
+                $this->displayName,
+                null,
+                $extra_vars,
+                null,
+                false,
+                $customer->secure_key);
+            Logger::addLog("Payment Successful for cart#".$oid.". Cashfree reference id: ".$payments->cf_payment_id . " Ret=" . (int)$orderValidate." Success Url: ".$response_url, 1);
 
-				Logger::addLog("Payment Successful for cart#".$oid.". Cashfree reference id: ".$jsonResponse['referenceId'] . " Ret=" . (int)$orderValidate." Success Url: ".$response_url, 1);
+            $query = http_build_query([
+                'controller'    => 'order-confirmation',
+                'id_cart'       => (int)$cart->id,
+                'id_module'     => (int)$this->id,
+                'id_order'      => (int)$this->currentOrder,
+                'key'           => $this->context->customer->secure_key,
+            ], '', '&');
 
-				$query = http_build_query([
-					'controller'    => 'order-confirmation',
-					'id_cart'       => (int)$oid,
-					'id_module'     => (int)$this->id,
-					'id_order'      => (int)$this->currentOrder,
-					'key'           => $this->context->customer->secure_key,
-				], '', '&');
-	
-				$url = 'index.php?' . $query;
-			}
-			else if($txStatus == 'FAILED') {
-				$payment_failed_stid = 6;
-				$states = OrderState::getOrderStates((int)$this->context->language->id);
-				// check if order state exist
-				foreach ($states as $state) {
-					if (in_array('Payment Failed', $state)) {
-						$payment_failed_stid = $state['id_order_state'];
-					}
-				}
-				
-				$orderValidate = $this->validateOrder($this->context->cart->id , $payment_failed_stid, (float)($total), $this->displayName, NULL, NULL, NULL, false, $this->context->cart->secure_key, NULL);
-			
-				$duplicated_cart = $this->context->cart->duplicate();
-				$this->context->cart = $duplicated_cart['cart'];
-				$this->context->cookie->id_cart = (int)$this->context->cart->id;
-					  
-				Logger::addLog("Payment failed for cart#".$oid.". Cashfree reference id: ".$jsonResponse['referenceId'] . " Ret=" . (int)$orderValidate." Success Url: ".$response_url, 1);
-				
-				Tools::redirectLink($this->context->link->getPageLink('order',null, null, array('error_msg' => $errmsglist[$txStatus])));
-			}
-			else {
-				$cancel_stid = 6;
-				$orderValidate = $this->validateOrder($this->context->cart->id , $cancel_stid, (float)($total), $this->displayName, NULL, NULL, NULL, false, $this->context->cart->secure_key, NULL);
-			
-				$duplicated_cart = $this->context->cart->duplicate();
-				$this->context->cart = $duplicated_cart['cart'];
-				$this->context->cookie->id_cart = (int)$this->context->cart->id;
-					  
-				Logger::addLog("Payment Cancelled for cart#".$oid.". Cashfree reference id: ".$jsonResponse['referenceId'] . " Ret=" . (int)$orderValidate." Success Url: ".$response_url, 1);
-				
-				Tools::redirectLink($this->context->link->getPageLink('order',null, null, array('error_msg' => $errmsglist[$txStatus])));
+            return 'index.php?' . $query;
+        } else {
+            $referenceId = "";
+            $payment_failed_stid = 6;
+            $errorMessage = $errorMessageList['PENDING'];
+            if(is_array($cfOrder) && isset($cfOrder[0]) && is_object($cfOrder[0])) {
+                $payments = $cfOrder[0];
+                $referenceId = $payments->cf_payment_id;
+                $errorMessage = $errorMessageList[$payments->payment_status];
 
-			}			
-			return $url;			
-			
-		}
+                // Handle other cases or errors
+                if($payments->payment_status === 'FAILED') {
+                    $states = OrderState::getOrderStates((int)$this->context->language->id);
+                    // check if order state exist
+                    foreach ($states as $state) {
+                        if (in_array('Payment Failed', $state)) {
+                            $payment_failed_stid = $state['id_order_state'];
+                        }
+                    }
+                }
+            }
+
+            $extra_vars['transaction_id'] = $referenceId;
+            $orderValidate = $this->validateOrder(
+                $cart->id ,
+                $payment_failed_stid,
+                $cart->getOrderTotal(true, Cart::BOTH),
+                $this->displayName,
+                NULL,
+                $extra_vars,
+                NULL,
+                false,
+                $cart->secure_key, NULL);
+            $duplicated_cart = $this->context->cart->duplicate();
+            $this->context->cart = $duplicated_cart['cart'];
+            $this->context->cookie->id_cart = (int)$this->context->cart->id;
+
+            Logger::addLog("Payment failed for cart#".$oid.". Cashfree reference id: ".$referenceId . " Ret=" . (int)$orderValidate." Success Url: ".$response_url, 1);
+
+            Tools::redirectLink($this->context->link->getPageLink('order',null, null, array('error_msg' => $errorMessage)));
+        }
 		
 	}
 	
@@ -288,7 +289,7 @@ class Cashfree extends PaymentModule
 				$html = '<div class="alert alert-success">'.$this->l('Configuration updated successfully').'</div>';			
 			}
 			else {
-				$html = '<div class="alert alert-warning">'.$this->l($err_msg).'</div>';	
+				$html = '<div class="alert alert-danger">'.$this->l($err_msg).'</div>';	
 			}
         }
 
@@ -389,79 +390,105 @@ class Cashfree extends PaymentModule
 		$cart = $this->context->cart;
 		$customer = new Customer($cart->id_customer);
 		
-		$amount = number_format($cart->getOrderTotal(true, Cart::BOTH),2);
-		$order_id = $cart->id;				
+		$order_id = $cart->id;
 				
-		$iaddress = new Address($cart->id_address_invoice);				
-		$icountry_code = Country::getIsoById($iaddress->id_country) ;		
+		$customerAddress = new Address($cart->id_address_invoice);
 		$total = ($cart->getOrderTotal());
 		$currency = $this->context->currency;
 		
-		$returnURL = $this->context->link->getModuleLink('cashfree', 'validation');		
+		$returnURL = $this->context->link->getModuleLink('cashfree', 'validation');
+        $returnURL = $returnURL.'?order_id={order_id}';
 		$notifyURL  = $this->context->link->getModuleLink('cashfree', 'notify');
-					  
-		$apiEndpoint = (Configuration::get('CASHFREE_MODE') == 'N') ? 'https://api.cashfree.com' : 'https://test.cashfree.com';  				
-		
-		$opUrl = $apiEndpoint."/api/v1/order/create";
-  
-   		$cf_request = array();
-   		$cf_request["appId"] = Configuration::get('CASHFREE_APP_ID');
-   		$cf_request["secretKey"] = Configuration::get('CASHFREE_SKEY');
-   		$cf_request["orderId"] = $order_id.'_'.time(); 
-   		$cf_request["orderAmount"] = round($total, 2);
-   		$cf_request["orderNote"] = "Order No: ".$order_id;
-   		$cf_request["customerPhone"] = $iaddress->phone;
-   		$cf_request["customerName"] = $iaddress->firstname . ' ' . $iaddress->lastname;
-   		$cf_request["customerEmail"] = $customer->email;
-   		$cf_request["returnUrl"] = $returnURL;
-		$cf_request["notifyUrl"] = $notifyURL;
-		$cf_request["orderCurrency"] = $currency->iso_code;
-		//$cf_request["orderCurrency"] ='INR';
-		
-		
-		$timeout = 10;
-   
-   		$request_string = "";
-   		foreach($cf_request as $key=>$value) {
-     		$request_string .= $key.'='.rawurlencode($value).'&';
-   		}
-		try 
-		{
-			$ch = curl_init();
-			curl_setopt($ch, CURLOPT_URL,"$opUrl?");
-			curl_setopt($ch,CURLOPT_POST, count($cf_request));
-			curl_setopt($ch,CURLOPT_POSTFIELDS, $request_string);
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-			$curl_result=curl_exec ($ch);
-			curl_close ($ch);
 
-			$jsonResponse = json_decode($curl_result);
+        $apiEndpoint = "https://sandbox.cashfree.com";
+        $environment = "sandbox";
+        if(Configuration::get('CASHFREE_MODE') == 'N') {
+            $apiEndpoint = "https://api.cashfree.com";
+            $environment = "production";
+        }
 
-			if ($jsonResponse->{'status'} == "OK") {
-				$paymentLink = $jsonResponse->{"paymentLink"};
-				return $paymentLink;
-				exit;
-			} else {	   		
-				$checkout_type = Configuration::get('PS_ORDER_PROCESS_TYPE') ? 'order-opc' : 'order';
-						$url = (_PS_VERSION_ >= '1.5' ? 'index.php?controller='.$checkout_type.'&' : $checkout_type.'.php?').'step=3&cgv=1&cashfreeerror='.$jsonResponse->{"reason"}.'#cashfree-anchor';
-						Tools::redirect($url);	
-				
-				exit;
-				
-			}
-		}
-		catch(Exception $e)
-		{
-			$error = $e->getMessage();
-            Logger::addLog("Order creation failed. Please contact the seller directly for assistance. Error: ". $error, 4);
-			$checkout_type = Configuration::get('PS_ORDER_PROCESS_TYPE') ? 'order-opc' : 'order';
-						$url = (_PS_VERSION_ >= '1.5' ? 'index.php?controller='.$checkout_type.'&' : $checkout_type.'.php?').'step=3&cgv=1&cashfreeerror='.$jsonResponse->{"reason"}.'#cashfree-anchor';
-						Tools::redirect($url);	
-				
+		$opUrl = $apiEndpoint."/pg/orders";
+
+        $cf_request_array = array(
+            "order_id" => $order_id.'_'.time(),
+            "order_amount" => round($total, 2),
+            "order_note" => "Order No: ".$order_id,
+            "order_currency" => $currency->iso_code,
+            "customer_details" => array(
+                "customer_id" => $cart->id_customer,
+                "customer_email" => $customer->email,
+                "customer_phone" => $customerAddress->phone
+            ),
+            "order_meta" => array(
+                "return_url" => $returnURL,
+                "notify_url" => $notifyURL
+            )
+
+        );
+
+		$timeout = 30;
+        $header = array(
+            'Content-Type: application/json',
+            'x-client-id:'.Configuration::get('CASHFREE_APP_ID'),
+            'x-client-secret:'.Configuration::get('CASHFREE_SKEY'),
+            'x-api-version:'.$this::API_VERSION_20230801
+        );
+
+        $cf_request = json_encode($cf_request_array);
+
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL,$opUrl);
+        curl_setopt($ch,CURLOPT_POSTFIELDS, $cf_request);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        $curl_result=curl_exec ($ch);
+        curl_close ($ch);
+
+        $cfOrder = json_decode($curl_result);
+
+        if (null !== $cfOrder && !empty($cfOrder->{"payment_session_id"}))
+        {
+            $paymentSessionId = $cfOrder->{"payment_session_id"};
+            $cashfreeV3JsUrl = $this::CASHFREE_V3_JS_URL;
+            $html_output = <<<EOT
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Cashfree Checkout Integration</title>
+                       <script src="{$cashfreeV3JsUrl}"></script>
+                    </head>
+                    <body>
+                    </body>
+                    <script>
+                        const cashfree = Cashfree({
+                            mode: "$environment"
+                        });
+                         window.addEventListener("DOMContentLoaded", function () {
+                            cashfree.checkout({
+                                paymentSessionId: "$paymentSessionId",
+                                redirectTarget: "_self",
+                                platformName: "ps"
+                            });
+                        });
+                    </script>
+                    </html>
+                    EOT;
+            echo $html_output;
             exit;
-		}  		
+        } else {
+            $error = $cfOrder->{"message"};
+            Logger::addLog("Order creation failed. Please contact the seller directly for assistance. Error: ". $error, 4);
+            $checkout_type = Configuration::get('PS_ORDER_PROCESS_TYPE') ? 'order-opc' : 'order';
+            $url = (_PS_VERSION_ >= '1.5' ? 'index.php?controller='.$checkout_type.'&' : $checkout_type.'.php?').'step=3&cgv=1&cashfreeerror='.$error.'#cashfree-anchor';
+            Tools::redirect($url);
+
+            exit;
+        }
 
     }
 }
