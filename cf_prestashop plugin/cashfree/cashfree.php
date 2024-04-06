@@ -391,7 +391,7 @@ class Cashfree extends PaymentModule
 
         $order_id = $cart->id;
 
-        $customerAddress = new Address($cart->id_address_invoice);
+        $customerAddress = new Address($cart->id_address_delivery);
         $total = $cart->getOrderTotal();
         $currency = $this->context->currency;
 
@@ -415,8 +415,9 @@ class Cashfree extends PaymentModule
             "order_currency" => $currency->iso_code,
             "customer_details" => array(
                 "customer_id" => $cart->id_customer,
+                "customer_name" => $customer->firstname . ' ' . $customer->lastname,
                 "customer_email" => $customer->email,
-                "customer_phone" => $customerAddress->phone
+                "customer_phone" => $customerAddress->phone_mobile
             ),
             "order_meta" => array(
                 "return_url" => $returnURL,
