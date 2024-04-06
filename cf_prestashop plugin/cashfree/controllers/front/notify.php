@@ -1,8 +1,17 @@
 <?php
+/**
+ * CASHFREE
+ *
+ * @author CASHFREE
+ */
+
+if (!defined('_PS_VERSION_'))
+    exit;
+
 class CashfreeNotifyModuleFrontController extends ModuleFrontController
 {
 
-  public $ssl = true;
+    public $ssl = true;
 
     public $isLogged = false;
 
@@ -11,16 +20,16 @@ class CashfreeNotifyModuleFrontController extends ModuleFrontController
      */
     public function __construct()
     {
-		
+
         $this->controller_type = 'modulefront';
-        
+
         $this->module = Module::getInstanceByName(Tools::getValue('module'));
-        if (! $this->module->active) {
+        if (!$this->module->active) {
             Tools::redirect('index');
         }
         $this->page_name = 'module-' . $this->module->name . '-' . Dispatcher::getInstance()->getController();
-		
-        
+
+
         parent::__construct();
     }
 
@@ -33,9 +42,9 @@ class CashfreeNotifyModuleFrontController extends ModuleFrontController
         sleep(30);
         $cashfree = new Cashfree();
         $cashfree->returnSuccess($_POST, "Notify Url");
-		echo "OK";				
-		exit;		                                
+        echo "OK";
+        exit;
     }
-    
+
 
 }
