@@ -415,7 +415,7 @@ class Cashfree extends PaymentModule
             "order_note" => "Order No: ".$order_id,
             "order_currency" => $currency->iso_code,
             "customer_details" => array(
-                "customer_id" => $cart->id_customer,
+                "customer_id" => strval($cart->id_customer),
                 "customer_email" => $customer->email,
                 "customer_phone" => $customerAddress->phone
             ),
